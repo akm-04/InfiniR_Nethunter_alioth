@@ -10,12 +10,15 @@ green='\033[1;32m'
 red='\033[1;31m'
 MAKE_MODULE=0      # This flag is used to disable generating modules permanently
 KERNELDIR=$PWD
+# Speed up build process
+MAKE="./makeparallel"
 
-echo -e " $yellow ##### Infinir Kernel Nethunter build.sh ########$nocol "
-echo -e " $yellow ##### Choose Correct options as required when asked ##########$nocol "
-echo -e " $yellow ##### To use custom clang version, edit this script to ######$nocol "
-echo -e " $yellow ##### export your clang version. Currently using  #####$nocol "
-echo -e " $yellow ##### AOSP Clang 17.0.4  ###$nocol "
+
+echo -e " $yellow #####|           AOSP-Nethunter_build.sh             |########$nocol "
+echo -e " $yellow #####| Choose Correct options as required when asked |##########$nocol "
+echo -e " $yellow #####| To use custom clang version, edit this script |######$nocol "
+echo -e " $yellow #####|     to export / set  your clang version.      |#####$nocol "
+#echo -e " $yellow #####  ###$nocol "
 #echo -e " $yellow ##### the root of kernel source folder and anykernel.sh ##$nocol "
 
 # echo -e " $yellow ##### This script requires that proton-clang & AnyKernel3 #####$nocol "
@@ -28,21 +31,29 @@ echo -e " $yellow ##### AOSP Clang 17.0.4  ###$nocol "
 # -----------------------------------------------------------------------------------------------------------------------------------
 # ---------------------------- EXPORTS --------------------------------------------------
 KERNEL_DEFCONFIG=alioth_Nethunter_defconfig
+#KERNEL_DEFCONFIG=akm_alioth-Kali_defconfig
 ANYKERNEL3_DIR=$PWD/AnyKernel3/
 export ARCH=arm64
-#export PATH="/home/akm/Git/Forked/AOSP_clang/aosp-clang_17.0.4/bin:${PATH}"
+export SUBARCH=ARM64
 
+export PATH="/home/akm/Git/Forked/AOSP_clang/Android_14/clang-r487747c/bin:${PATH}"
+export LD_LIBRARY_PATH="/home/akm/Git/Forked/AOSP_clang/Android_14/clang-r450784e/lib64:$LD_LIBRARY_PATH"
 # Define variables for each toolchain (AOSP Clang)
-CC_CLANG="/home/akm/Git/Forked/AOSP_clang/aosp-clang_17.0.4/bin/clang"
+#CC_CLANG="/home/akm/Git/Forked/Clang/clang14/bin/clang"
+#CC_CLANG="/home/akm/Git/Forked/proton-clang/bin/clang"
+CC_CLANG=clang
+
 CLANG_TRIPLE="aarch64-linux-gnu-"
-CROSS_COMPILE_ARM64="/home/akm/Git/Forked/AOSP_clang/others/aarch64-linux-android/bin/aarch64-linux-android-"
-CROSS_COMPILE_ARM32="/home/akm/Git/Forked/AOSP_clang/arm-linux-androideabi-4.9/bin/arm-linux-androideabi-"
+#CROSS_COMPILE_ARM64="aarch64-linux-gnu-"
+#CROSS_COMPILE_ARM32="arm-linux-gnueabi-"
+CROSS_COMPILE_ARM64="/home/akm/Git/Forked/AOSP_clang/AOSP_tools/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-android-"
+CROSS_COMPILE_ARM32="/home/akm/Git/Forked/AOSP_clang/AOSP_tools/gcc/linux-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androideabi-"
 
 # Define variable to hold the name of the kernel artifact
-ARTIFACT="Image.gz-dtb"  # Default to uncompressed kernel image
-
+#ARTIFACT="Image"  # Default to uncompressed kernel image
+ARTIFACT="Image.gz-dtb"
 # Flag used to skip/build dtbo
-BUILD_DTBOIMG="0"   
+BUILD_DTBOIMG="1"   
 # Set the DTBO path
 DTBO_PATH="vendor/qcom/alioth-sm8250-overlay.dtbo"  # path to dtbo
 
@@ -143,37 +154,59 @@ clean_kernel() {
 
 build_kernel() {
     cd $KERNELDIR
+    # ----------------------Toolchain Info ----------------------------------
     echo -e "$green*** Using this Clang Version to compile kernel *** $nocol"
-    clang --version
+    $CC_CLANG --version
+    echo -e "$green*** ARM64 Cross-Compiler Version: *** $nocol"
+    aarch64-linux-gnu-gcc --version
+    echo -e "$green*** ARM64 Cross-Compiler Version: *** $nocol"
+    arm-linux-gnueabi-gcc --version
+
+    #-----------------------Defconfig stuff-----------------------------------
     echo -e "$yellow**** Kernel defconfig is set to $KERNEL_DEFCONFIG ****$nocol"
     echo -e "$blue***********************************************"
     echo "       NOW MAKING _defconfig : $KERNEL_DEFCONFIG        "
     echo -e "***********************************************$nocol"
-    make O=out CC=clang $KERNEL_DEFCONFIG
+    make O=out  CC="$CC_CLANG" AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump READELF=llvm-readelf OBJSIZE=llvm-size STRIP=llvm-strip HOSTCC=clang HOSTCXX=clang++  $KERNEL_DEFCONFIG
 
+    #------------------------Kernel Stuff-------------------------------------
     echo -e "$blue***********************************************"
     echo "         NOW COMPILING KERNEL!                  "
     echo -e "***********************************************$nocol"
 
     make O=out \
         CC="$CC_CLANG" \
-        CLANG_TRIPLE="$CLANG_TRIPLE" \
         CROSS_COMPILE="$CROSS_COMPILE_ARM64" \
         CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
+        CLANG_TRIPLE="$CLANG_TRIPLE" \
+        AR=llvm-ar \
+        OBJCOPY=llvm-objcopy \
+        STRIP=llvm-strip \
+        OBJDUMP=llvm-objdump \
+        NM=llvm-nm \
+        LLVM=1 \
+        LLVM_IAS=1 \
+        READELF=llvm-readelf \
+        OBJSIZE=llvm-size \
+        HOSTCC=clang \
+        HOSTCXX=clang++ \
         -j$(nproc) 2>&1 | tee build.log
 
-
-
+        # ----------Other optional compiling options --------------------------
+        #AR=llvm-ar \
+        #OBJCOPY=llvm-objcopy \
+        #STRIP=llvm-strip \
+        #OBJDUMP=llvm-objdump \
+        #NM=llvm-nm \
+        #LLVM=1 \
+        #LLVM_IAS=1 \
+        #CROSS_COMPILE_COMPAT="$CROSS_COMPILE_ARM32" \
+     #   CLANG_TRIPLE="$CLANG_TRIPLE" \
     #    CROSS_COMPILE=aarch64-linux-gnu- \
     #    CROSS_COMPILE_ARM32=arm-linux-gnueabi \
     #    CC=clang \
     #    -j$(nproc) 2>&1 | tee build.log
 
-    # AR=llvm-ar \
-    # NM=llvm-nm \
-    # OBJCOPY=llvm-objcopy \
-    # OBJDUMP=llvm-objdump \
-    # STRIP=llvm-strip \
     # $(nproc)
 
     ### Other options that could be used if using proton clamg for example..
@@ -188,6 +221,7 @@ build_kernel() {
     # NM=llvm-nm \
     # OBJCOPY=llvm-objcopy \
 
+    #---------------------------Build Summary------------------------------------
     BUILD_MID=$(date +"%s")
     MID_DIFF=$(($BUILD_MID - $BUILD_START))
     echo -e "$yellow Kernel Compiled in $(($MID_DIFF / 60)) minute(s) and $(($MID_DIFF % 60)) seconds.$nocol"
@@ -221,18 +255,30 @@ build_modules() {
             echo -e "***********************************************$nocol"
 
             echo -e "$green*** Using this Clang Version to compile module*** $nocol"
-            clang --version
+            $CC_CLANG --version
             echo -e "$yellow**** Kernel defconfig is set to $KERNEL_DEFCONFIG ****$nocol"
             echo -e "$blue***********************************************"
             echo "       NOW MAKING _defconfig : $KERNEL_DEFCONFIG        "
             echo -e "***********************************************$nocol"
-            make O=out CC=clang $KERNEL_DEFCONFIG
+            make O=out  CC="$CC_CLANG" AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump READELF=llvm-readelf OBJSIZE=llvm-size STRIP=llvm-strip HOSTCC=clang HOSTCXX=clang++  $KERNEL_DEFCONFIG
 
             echo -e "$yellow**** Preparing Modules ****$nocol"
             make O=out \
+                CC="$CC_CLANG" \
                 CROSS_COMPILE="$CROSS_COMPILE_ARM64" \
                 CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
-                CC="$CC_CLANG" \
+                CLANG_TRIPLE="$CLANG_TRIPLE" \
+                AR=llvm-ar \
+                OBJCOPY=llvm-objcopy \
+                STRIP=llvm-strip \
+                OBJDUMP=llvm-objdump \
+                NM=llvm-nm \
+                LLVM=1 \
+                LLVM_IAS=1 \
+                READELF=llvm-readelf \
+                OBJSIZE=llvm-size \
+                HOSTCC=clang \
+                HOSTCXX=clang++ \
                 modules_prepare || {
                 echo "Error preparing modules"
                 exit 1
@@ -240,9 +286,21 @@ build_modules() {
 
             echo -e "$yellow**** Building Modules ****$nocol"
             make O=out \
+                CC="$CC_CLANG" \
                 CROSS_COMPILE="$CROSS_COMPILE_ARM64" \
                 CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
-                CC="$CC_CLANG" \
+                CLANG_TRIPLE="$CLANG_TRIPLE" \
+                AR=llvm-ar \
+                OBJCOPY=llvm-objcopy \
+                STRIP=llvm-strip \
+                OBJDUMP=llvm-objdump \
+                NM=llvm-nm \
+                LLVM=1 \
+                LLVM_IAS=1 \
+                READELF=llvm-readelf \
+                OBJSIZE=llvm-size \
+                HOSTCC=clang \
+                HOSTCXX=clang++ \
                 modules INSTALL_MOD_PATH="$KERNELDIR"/out/modules || {
                 echo "Error building modules"
                 exit 1
@@ -250,9 +308,21 @@ build_modules() {
             echo -e "$yellow**** Installing Modules ****$nocol"
 
             make O=out \
+                CC="$CC_CLANG" \
                 CROSS_COMPILE="$CROSS_COMPILE_ARM64" \
                 CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
-                CC="$CC_CLANG" \
+                CLANG_TRIPLE="$CLANG_TRIPLE" \
+                AR=llvm-ar \
+                OBJCOPY=llvm-objcopy \
+                STRIP=llvm-strip \
+                OBJDUMP=llvm-objdump \
+                NM=llvm-nm \
+                LLVM=1 \
+                LLVM_IAS=1 \
+                READELF=llvm-readelf \
+                OBJSIZE=llvm-size \
+                HOSTCC=clang \
+                HOSTCXX=clang++ \
                 modules_install INSTALL_MOD_PATH="$KERNELDIR"/out/modules || {
                 echo "Error installing modules"
                 exit 1
@@ -327,8 +397,7 @@ zip_kernel() {
     echo -e "$yellow**** Copying $ARTIFACT to anykernel 3 folder ****$nocol"
     cp "$KERNELDIR/out/arch/arm64/boot/$ARTIFACT" "$ANYKERNEL3_DIR/"
     
-    if [ $BUILD_DTBOIMG = "1" ]
-    then
+    if [ "$BUILD_DTBOIMG" = "1" ] || [ "$BUILD_DTBOIMG" = "2" ]; then
         echo -e "$yellow**** Copying dtbo.img to anykernel 3 folder ****$nocol"
         cp "$KERNELDIR"/out/arch/arm64/boot/dtbo.img $ANYKERNEL3_DIR/dtbo.img
     fi
@@ -357,7 +426,7 @@ summary() {
     echo -e "$green Full Build completed in $(($DIFF / 60)) minute(s) and $(($DIFF % 60)) seconds.$nocol"
     echo -e "$green**** Generated Zip File Location: $KERNELDIR/Anykernel3/$FINAL_KERNEL_ZIP_WITH_TIMESTAMP ****$nocol"
     echo -e "$green**** Checksum for kernel zip ****$nocol"
-    sha1sum $KERNELDIR/Anykernel3/$FINAL_KERNEL_ZIP_WITH_TIMESTAMP
+    sha1sum "$KERNELDIR/Anykernel3/$FINAL_KERNEL_ZIP_WITH_TIMESTAMP"
 
     [ -n "$MOD_NAME" ] && echo -e "$green**** Checksum for Module zip ****$nocol" && sha1sum "$KERNELDIR/Mod/$MOD_NAME" && echo -e "$green**** Generated Module Zip File Location: $KERNELDIR/Mod/$MOD_NAME ****$nocol"
 }
@@ -385,7 +454,7 @@ initializeTest
 clean_kernel
 if [ "$MOD_ONLY" == "n" ]; then
     build_kernel
-    if [ "$BUILD_DTBOIMG" == "1" ]; then
+    if [ "$BUILD_DTBOIMG" == "2" ]; then
         build_dtbo
     fi
     zip_kernel
@@ -395,8 +464,8 @@ summary
 
 # Remove The out folder after the script gets executed
 
-if [ "$PWD" == "$KERNELDIR" ]; then
-    rm -rf out/
-fi
+#if [ "$PWD" == "$KERNELDIR" ]; then
+#    rm -rf out/
+#fi
 
 
