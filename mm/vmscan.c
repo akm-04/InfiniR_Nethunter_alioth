@@ -2654,7 +2654,10 @@ static struct lruvec *get_lruvec(struct mem_cgroup *memcg, int nid)
 
 static int get_swappiness(struct lruvec *lruvec, struct scan_control *sc)
 {
-	struct mem_cgroup *memcg = lruvec_memcg(lruvec);
+	if (gfp_compaction_allowed(sc->gfp_mask) && sc->order &&
+			(sc->order > PAGE_ALLOC_COSTLY_ORDER ||
+			 sc->priority < DEF_PRIORITY - 2))
+		return true;
 
 	if (mem_cgroup_get_nr_swap_pages(memcg) < MIN_LRU_BATCH)
 		return 0;
@@ -5626,6 +5629,9 @@ static inline bool compaction_ready(struct zone *zone, struct scan_control *sc)
 {
 	unsigned long watermark;
 	enum compact_result suitable;
+
+	if (!gfp_compaction_allowed(sc->gfp_mask))
+		return false;
 
 	suitable = compaction_suitable(zone, sc->order, 0, sc->reclaim_idx);
 	if (suitable == COMPACT_SUCCESS)

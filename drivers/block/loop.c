@@ -999,6 +999,7 @@ loop_set_status_from_info(struct loop_device *lo,
 	int err;
 	struct loop_func_table *xfer;
 	kuid_t uid = current_uid();
+	loff_t new_size;
 
 	if ((unsigned int) info->lo_encrypt_key_size > LO_KEY_SIZE)
 		return -EINVAL;
@@ -1021,6 +1022,10 @@ loop_set_status_from_info(struct loop_device *lo,
 	err = loop_init_xfer(lo, xfer, info);
 	if (err)
 		return err;
+ 
+	/* Avoid assigning overflow values */
+	if (info->lo_offset > LLONG_MAX || info->lo_sizelimit > LLONG_MAX)
+		return -EOVERFLOW;
 
 	lo->lo_offset = info->lo_offset;
 	lo->lo_sizelimit = info->lo_sizelimit;
@@ -1033,6 +1038,11 @@ loop_set_status_from_info(struct loop_device *lo,
 		xfer = &none_funcs;
 	lo->transfer = xfer->transfer;
 	lo->ioctl = xfer->ioctl;
+	
+	new_size = get_size(info->lo_offset, info->lo_sizelimit,
+			    lo->lo_backing_file);
+	if ((loff_t)(sector_t)new_size != new_size)
+		return -EFBIG;
 
 	lo->lo_flags = info->lo_flags;
 
@@ -1412,10 +1422,6 @@ loop_get_status(struct loop_device *lo, struct loop_info64 *info)
 	info->lo_number = lo->lo_number;
 	info->lo_offset = lo->lo_offset;
 	info->lo_sizelimit = lo->lo_sizelimit;
-
-	/* loff_t vars have been assigned __u64 */
-	if (lo->lo_offset < 0 || lo->lo_sizelimit < 0)
-		return -EOVERFLOW;
 
 	info->lo_flags = lo->lo_flags;
 	memcpy(info->lo_file_name, lo->lo_file_name, LO_NAME_SIZE);

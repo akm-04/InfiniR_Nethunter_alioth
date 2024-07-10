@@ -260,38 +260,23 @@ static inline void memcpy_and_pad(void *dest, size_t dest_len,
 }
 
 /**
- * memset_after - Set a value after a struct member to the end of a struct
+ * str_has_prefix - Test if a string has a given prefix
+ * @str: The string to test
+ * @prefix: The string to see if @str starts with
  *
- * @obj: Address of target struct instance
- * @v: Byte value to repeatedly write
- * @member: after which struct member to start writing bytes
+ * A common way to test a prefix of a string is to do:
+ *  strncmp(str, prefix, sizeof(prefix) - 1)
  *
- * This is good for clearing padding following the given member.
+ * But this can lead to bugs due to typos, or if prefix is a pointer
+ * and not a constant. Instead use str_has_prefix().
+ *
+ * Returns: 0 if @str does not start with @prefix
+         strlen(@prefix) if @str does start with @prefix
  */
-#define memset_after(obj, v, member)					\
-({									\
-	u8 *__ptr = (u8 *)(obj);					\
-	typeof(v) __val = (v);						\
-	memset(__ptr + offsetofend(typeof(*(obj)), member), __val,	\
-	       sizeof(*(obj)) - offsetofend(typeof(*(obj)), member));	\
-})
-
-/**
- * memset_startat - Set a value starting at a member to the end of a struct
- *
- * @obj: Address of target struct instance
- * @v: Byte value to repeatedly write
- * @member: struct member to start writing at
- *
- * Note that if there is padding between the prior member and the target
- * member, memset_after() should be used to clear the prior padding.
- */
-#define memset_startat(obj, v, member)					\
-({									\
-	u8 *__ptr = (u8 *)(obj);					\
-	typeof(v) __val = (v);						\
-	memset(__ptr + offsetof(typeof(*(obj)), member), __val,		\
-	       sizeof(*(obj)) - offsetof(typeof(*(obj)), member));	\
-})
+static __always_inline size_t str_has_prefix(const char *str, const char *prefix)
+{
+	size_t len = strlen(prefix);
+	return strncmp(str, prefix, len) == 0 ? len : 0;
+}
 
 #endif /* _LINUX_STRING_H_ */
