@@ -146,3 +146,5 @@ scripts/build_kernel
 scripts/update_defconfig
 /out/
 build.log
+/Mod
+AnyKernel3/Image.gz-dtb
