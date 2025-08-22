@@ -4,7 +4,7 @@
 
 KERNEL_DEFCONFIG=alioth_defconfig
 ANYKERNEL3_DIR=$PWD/AnyKernel3/
-FINAL_KERNEL_ZIP=InfiniR_Alioth_v2.98_KSUN_raystef66.zip
+FINAL_KERNEL_ZIP=InfiniR_Alioth_v2.99_KSUN_raystef66.zip
 export ARCH=arm64
 
 # Speed up build process
